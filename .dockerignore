@@ -1,0 +1,11 @@
+.git
+.vs
+.vscode
+**/bin
+**/obj
+**/.env
+.env
+docker-compose.override.yml
+**/node_modules
+ShipperMvp.Client
+scripts

@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="ShipperMvp.API/ShipperMvp.API.csproj" />
+  <Project Path="ShipperMvp.Application/ShipperMvp.Application.csproj" />
+  <Project Path="ShipperMvp.Domain/ShipperMvp.Domain.csproj" />
+  <Project Path="ShipperMvp.Infrastructure/ShipperMvp.Infrastructure.csproj" />
+  <Project Path="ShipperMvp.Tests/ShipperMvp.Tests.csproj" />
+</Solution>

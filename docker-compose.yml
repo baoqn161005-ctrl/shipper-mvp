@@ -1,0 +1,78 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: shipper-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Express
+      MSSQL_SA_PASSWORD: ${SQLSERVER_SA_PASSWORD:?Set SQLSERVER_SA_PASSWORD in .env}
+    ports:
+      - "${SQLSERVER_PORT:-1433}:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" -b"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    restart: unless-stopped
+
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      SQLSERVER_SA_PASSWORD: ${SQLSERVER_SA_PASSWORD:?Set SQLSERVER_SA_PASSWORD in .env}
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >-
+        if [ "$(/opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$${SQLSERVER_SA_PASSWORD}" -C -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM ShipperMvpDb.sys.tables WHERE name = 'Users'")" = "1" ]; then
+        echo 'Database schema already initialized';
+        else
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$${SQLSERVER_SA_PASSWORD}" -C -I -b -i /init/init_database.sql;
+        fi
+    volumes:
+      - ./init_database.sql:/init/init_database.sql:ro
+    restart: "no"
+
+  redis:
+    image: redis:7-alpine
+    container_name: shipper-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  backend-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shipper-backend-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=ShipperMvpDb;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:?Set SQLSERVER_SA_PASSWORD in .env};TrustServerCertificate=True;MultipleActiveResultSets=true"
+      Jwt__Secret: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      Jwt__Issuer: ${JWT_ISSUER:-ShipperMvp}
+      Jwt__Audience: ${JWT_AUDIENCE:-ShipperMvp.Mobile}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      sqlserver-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  sqlserver-data:
+  redis-data:

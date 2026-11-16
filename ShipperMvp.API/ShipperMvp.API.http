@@ -1,0 +1,6 @@
+@ShipperMvp.API_HostAddress = http://localhost:5193
+
+GET {{ShipperMvp.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
